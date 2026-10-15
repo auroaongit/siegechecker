@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Siege Checker</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --card: #1a1d24;
+      --line: #2a2f3a;
+      --text: #e8eaee;
+      --muted: #8b93a3;
+      --enemy: #f08a3c;
+      --ally: #4ea1f3;
+      --bad: #ef5b5b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    main { max-width: 640px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 22px; margin: 4px 0 16px; }
+    h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .08em; margin: 24px 0 8px; }
+    h2.enemy { color: var(--enemy); }
+    h2.allies { color: var(--ally); }
+
+    .scan-btn {
+      display: block;
+      width: 100%;
+      padding: 18px;
+      border-radius: 14px;
+      background: var(--enemy);
+      color: #1a1006;
+      font-weight: 700;
+      font-size: 18px;
+      text-align: center;
+      cursor: pointer;
+    }
+    .scan-btn input { display: none; }
+    #preview { display: none; width: 100%; margin-top: 12px; border-radius: 10px; max-height: 200px; object-fit: contain; background: #000; }
+    #status { color: var(--muted); margin: 12px 0 0; min-height: 1.4em; }
+    #status.error { color: var(--bad); }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--team-colour);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .card.enemy { --team-colour: var(--enemy); }
+    .card.allies { --team-colour: var(--ally); }
+    .top { display: flex; align-items: center; gap: 10px; }
+    .top img { width: 40px; height: 40px; border-radius: 50%; background: var(--line); flex: none; }
+    .top input {
+      flex: 1;
+      min-width: 0;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: var(--text);
+      font: inherit;
+      font-weight: 600;
+      padding: 4px 6px;
+    }
+    .top input:focus { border-color: var(--line); outline: none; background: var(--bg); }
+    .rank { font-size: 13px; color: var(--muted); text-align: right; flex: none; }
+    .rank b { display: block; color: var(--text); font-size: 15px; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+    .stat { background: var(--bg); border-radius: 6px; padding: 6px; text-align: center; }
+    .stat span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; }
+    .stat b { font-size: 16px; }
+    .msg { color: var(--muted); font-size: 14px; margin-top: 8px; }
+    .msg.error { color: var(--bad); }
+    .card a { color: var(--ally); font-size: 14px; display: inline-block; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Siege Checker</h1>
+
+  <label class="scan-btn">
+    📷 Scan the scoreboard
+    <input id="photo" type="file" accept="image/*">
+  </label>
+  <img id="preview" alt="Your photo">
+  <p id="status">Take a photo of the scoreboard or team lineup.</p>
+
+  <section id="results"></section>
+</main>
+
+<script>
+const photoInput = document.getElementById("photo");
+const preview = document.getElementById("preview");
+const statusEl = document.getElementById("status");
+const results = document.getElementById("results");
+
+function setStatus(text, isError = false) {
+  statusEl.textContent = text;
+  statusEl.classList.toggle("error", isError);
+}
+
+// Phone photos are huge (5-10 MB). Shrink to 1600px wide JPEG before uploading:
+// faster on mobile data, and the AI doesn't need more detail than that.
+function shrinkImage(file, maxSize = 1600) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(resolve, "image/jpeg", 0.85);
+    };
+    img.onerror = () => reject(new Error("Couldn't open that image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// Small helper: POST to our server and throw a readable error if it fails.
+async function api(url, options) {
+  const res = await fetch(url, { method: "POST", ...options });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.detail || `Server error (${res.status})`);
+  return body;
+}
+
+photoInput.addEventListener("change", async () => {
+  const file = photoInput.files[0];
+  if (!file) return;
+  results.innerHTML = "";
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = "block";
+
+  try {
+    setStatus("Reading names…");
+    const small = await shrinkImage(file);
+    const form = new FormData();
+    form.append("photo", small, "photo.jpg");
+    const teams = await api("/api/scan", { body: form });
+
+    if (!teams.enemy.length && !teams.allies.length) {
+      setStatus("No names found. Try a clearer, straighter photo.", true);
+      return;
+    }
+    setStatus("Looking up stats… (tap a name to fix a typo)");
+    // Enemy first, since that's who you care about.
+    const cards = [
+      ...addTeam("Enemy team", "enemy", teams.enemy),
+      ...addTeam("Your team", "allies", teams.allies),
+    ];
+    await lookUp(cards);
+    setStatus("Done. Tap a name to fix a typo and search again.");
+  } catch (err) {
+    setStatus(err.message, true);
+  } finally {
+    photoInput.value = ""; // lets you pick the same photo again
+  }
+});
+
+function addTeam(title, team, names) {
+  if (!names.length) return [];
+  const heading = document.createElement("h2");
+  heading.className = team;
+  heading.textContent = title;
+  results.append(heading);
+  return names.map(name => {
+    const card = makeCard(team, name);
+    results.append(card);
+    return card;
+  });
+}
+
+function makeCard(team, name) {
+  const card = document.createElement("div");
+  card.className = `card ${team}`;
+  card.innerHTML = `
+    <div class="top">
+      <img alt="" onerror="this.removeAttribute('src')">
+      <input aria-label="Player name">
+      <div class="rank"></div>
+    </div>
+    <div class="body"><div class="msg">Searching…</div></div>`;
+  const input = card.querySelector("input");
+  input.value = name;
+  // When you edit a name and press Enter (or tap away), search it again.
+  input.addEventListener("change", () => lookUp([card]));
+  input.addEventListener("keydown", e => { if (e.key === "Enter") input.blur(); });
+  return card;
+}
+
+async function lookUp(cards) {
+  cards.forEach(c => c.querySelector(".body").innerHTML = `<div class="msg">Searching…</div>`);
+  const names = cards.map(c => c.querySelector("input").value);
+  try {
+    const players = await api("/api/stats", {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names }),
+    });
+    players.forEach((p, i) => showStats(cards[i], p));
+  } catch (err) {
+    cards.forEach(c => c.querySelector(".body").innerHTML = `<div class="msg error"></div>`);
+    cards.forEach(c => c.querySelector(".msg").textContent = err.message);
+  }
+}
+
+function stat(label, value) {
+  return `<div class="stat"><span>${label}</span><b>${value ?? "–"}</b></div>`;
+}
+
+// Escape text before putting it in HTML, so a weird username can't break the page.
+function esc(text) {
+  const div = document.createElement("div");
+  div.textContent = text ?? "";
+  return div.innerHTML;
+}
+
+function showStats(card, p) {
+  const body = card.querySelector(".body");
+  const img = card.querySelector("img");
+  const rank = card.querySelector(".rank");
+
+  if (!p.found || p.error) {
+    img.removeAttribute("src");
+    rank.innerHTML = "";
+    body.innerHTML = `<div class="msg error">${esc(p.error || "Not found")} – check the spelling?</div>`;
+    return;
+  }
+
+  if (p.avatar_url) img.src = p.avatar_url;
+  card.querySelector("input").value = p.name;
+  rank.innerHTML = p.rank
+    ? `<b>${esc(p.rank)}</b>${p.rank_points} RP`
+    : `<b>Unranked</b>this season`;
+
+  body.innerHTML = `
+    <div class="stats">
+      ${stat("K/D", p.kd)}
+      ${stat("Win %", p.win_pct != null ? p.win_pct + "%" : null)}
+      ${stat("Matches", p.matches)}
+      ${stat("Peak", esc(p.max_rank) || null)}
+    </div>
+    <a target="_blank" rel="noopener">Full profile on R6 Tracker →</a>`;
+  body.querySelector("a").href = p.tracker_url;
+}
+</script>
+</body>
+</html>
