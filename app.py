@@ -21,6 +21,7 @@ from pydantic import BaseModel  # noqa: E402
 
 from name_reader import NameReadError, read_names  # noqa: E402
 from stats import StatsClient  # noqa: E402
+from tracker import TrackerClient  # noqa: E402
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
@@ -30,7 +31,11 @@ async def lifespan(app: FastAPI):
     # Runs once when the server starts...
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise RuntimeError("Set ANTHROPIC_API_KEY in your .env file")
-    app.state.stats = StatsClient()
+    # Use Ubisoft's servers if you've given a Ubisoft login, otherwise R6 Tracker.
+    if os.environ.get("UBISOFT_EMAIL"):
+        app.state.stats = StatsClient()
+    else:
+        app.state.stats = TrackerClient()
     yield
     # ...and this runs once when it shuts down.
     await app.state.stats.close()

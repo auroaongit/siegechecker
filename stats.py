@@ -1,8 +1,9 @@
-"""Step 2: look up each username's ranked stats from Ubisoft's servers.
+"""Step 2 (optional): look up each username's ranked stats from Ubisoft's servers.
 
-R6 Tracker gets its numbers from these same Ubisoft servers. There's no
-official public API, so we use the `siegeapi` library, which logs in with
-a Ubisoft account the same way the game does.
+Only used if you put a Ubisoft login in your settings; otherwise tracker.py is used.
+R6 Tracker gets its numbers from these same Ubisoft servers, so this is the
+backup for when R6 Tracker blocks us. We use the `siegeapi` library, which
+logs in with a Ubisoft account the same way the game does.
 """
 
 import asyncio

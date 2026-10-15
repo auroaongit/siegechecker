@@ -18,9 +18,5 @@ services:
       # so they never go in this file or on GitHub.
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: UBISOFT_EMAIL
-        sync: false
-      - key: UBISOFT_PASSWORD
-        sync: false
       - key: APP_PASSWORD
         sync: false

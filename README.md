@@ -11,7 +11,8 @@ Each player also has a link to their full R6 Tracker profile.
  ────────────────            ─────────────────────────────              ────────────────
  1. Take photo  ───────────▶ /api/scan  ── name_reader.py ───────────▶  Claude (reads names)
                 ◀── names ──
- 2. Show names  ───────────▶ /api/stats ── stats.py ─────────────────▶  Ubisoft stats servers
+ 2. Show names  ───────────▶ /api/stats ── tracker.py ───────────────▶  R6 Tracker
+                                          (or stats.py, optional) ───▶  Ubisoft stats servers
                 ◀── stats ──
 ```
 
@@ -20,11 +21,15 @@ Each player also has a link to their full R6 Tracker profile.
 | `static/index.html` | The page you open on your phone. Takes the photo, shrinks it, shows the results. |
 | `app.py` | The web server (FastAPI). Connects the phone page to the two steps below. |
 | `name_reader.py` | Sends the photo to Claude and gets back `{"enemy": [...], "allies": [...]}`. |
-| `stats.py` | Logs in to Ubisoft with `siegeapi` and fetches each player's ranked stats. |
+| `tracker.py` | Fetches each player's ranked stats from R6 Tracker (the default). |
+| `stats.py` | Optional backup: fetches the same stats straight from Ubisoft, using a Ubisoft login. |
 
-**Why not get the numbers from R6 Tracker itself?** R6 Tracker has no public API
-for Siege, and scraping its pages breaks its terms of service and gets blocked.
-R6 Tracker reads its numbers from Ubisoft's servers anyway, so we ask Ubisoft directly.
+**About R6 Tracker:** R6 Tracker has no official API for Siege, so `tracker.py` reads the
+same data feed its website uses. That's unofficial and against its terms of service.
+It can break when R6 Tracker changes its site, and R6 Tracker may block it, especially
+from cloud hosts like Render. When a lookup is blocked, the card still shows a link that
+opens the player's R6 Tracker page. If blocking happens a lot, add a Ubisoft login (below)
+and the app gets stats from Ubisoft instead. R6 Tracker gets its numbers from there anyway.
 
 ## Setup (one time)
 
@@ -45,10 +50,9 @@ cp .env.example .env             # Windows: copy .env.example .env
 Then fill in `.env`:
 
 - **`ANTHROPIC_API_KEY`**: create one at https://platform.claude.com. Each photo costs about one cent.
-- **`UBISOFT_EMAIL` / `UBISOFT_PASSWORD`**: use a **spare Ubisoft account**, not your
-  main. Ubisoft doesn't officially support this kind of access, so don't risk your main account.
-  Turn off two-factor authentication on the spare account, or the login won't work.
-- **`PLATFORM_FAMILY`**: `console` for PlayStation/Xbox ranked, `pc` for PC.
+- **`UBISOFT_EMAIL` / `UBISOFT_PASSWORD`** (optional): leave empty to use R6 Tracker.
+  If you fill them in, use a **spare Ubisoft account**, not your main. Ubisoft doesn't
+  officially support this kind of access. Turn off two-factor authentication on that account.
 
 ## Put it online (use it from anywhere on your phone)
 
@@ -57,15 +61,18 @@ This hosts the app for free on [Render](https://render.com), which runs it from 
 1. Sign up at https://render.com using **Sign in with GitHub**.
 2. Click **New → Blueprint**, pick the `siegechecker` repo, and click **Connect**.
    Render reads `render.yaml` and sets everything up.
-3. Render asks for four secret values. Type them in:
+3. Render asks for two secret values. Type them in:
    - `ANTHROPIC_API_KEY`: your Claude API key
-   - `UBISOFT_EMAIL` / `UBISOFT_PASSWORD`: the spare Ubisoft account
    - `APP_PASSWORD`: make up a password for the site. Your phone asks for it once and remembers it.
 4. Click **Apply** and wait a few minutes for the first build.
 5. Open the `https://siegechecker-xxxx.onrender.com` link Render gives you on your phone.
    Then use **Share → Add to Home Screen** so it opens like an app.
 
 Every time you push changes to GitHub, Render rebuilds the site automatically.
+
+**If R6 Tracker keeps blocking the site:** in Render, open your service → **Environment**,
+add `UBISOFT_EMAIL` and `UBISOFT_PASSWORD` for a spare Ubisoft account, and save.
+The app restarts and gets stats from Ubisoft instead.
 
 **Free plan catch:** the site goes to sleep after 15 minutes with no visitors. The first
 scan after that takes about a minute while it wakes up. Open the site in the

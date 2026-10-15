@@ -251,7 +251,12 @@ function showStats(card, p) {
   if (!p.found || p.error) {
     img.removeAttribute("src");
     rank.innerHTML = "";
-    body.innerHTML = `<div class="msg error">${esc(p.error || "Not found")} – check the spelling?</div>`;
+    const hint = p.error === "Player not found" ? " – check the spelling?" : "";
+    body.innerHTML = `<div class="msg error">${esc(p.error || "Not found")}${hint}</div>`;
+    if (p.tracker_url) {
+      body.insertAdjacentHTML("beforeend", `<a target="_blank" rel="noopener">Open on R6 Tracker →</a>`);
+      body.querySelector("a").href = p.tracker_url;
+    }
     return;
   }
 
