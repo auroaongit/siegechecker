@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Siege Checker</title>
+  <!-- Makes it look like an app when added to your home screen -->
+  <meta name="theme-color" content="#0f1115">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Siege Checker">
   <style>
     :root {
       --bg: #0f1115;
@@ -123,9 +128,26 @@ function shrinkImage(file, maxSize = 1600) {
   });
 }
 
+// The site password is remembered on this phone so you only type it once.
+// (localStorage can be blocked, e.g. in private browsing, hence the try/catch.)
+function getPassword() {
+  try { return localStorage.getItem("password") || ""; } catch { return ""; }
+}
+function savePassword(pw) {
+  try { localStorage.setItem("password", pw); } catch {}
+}
+
 // Small helper: POST to our server and throw a readable error if it fails.
-async function api(url, options) {
-  const res = await fetch(url, { method: "POST", ...options });
+// If the server says the password is missing/wrong (401), ask for it and try again.
+async function api(url, options, retried = false) {
+  const headers = { ...options.headers, "X-App-Password": getPassword() };
+  const res = await fetch(url, { method: "POST", ...options, headers });
+  if (res.status === 401 && !retried) {
+    const pw = prompt("Enter the site password:");
+    if (pw === null) throw new Error("Password needed");
+    savePassword(pw);
+    return api(url, options, true);
+  }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.detail || `Server error (${res.status})`);
   return body;

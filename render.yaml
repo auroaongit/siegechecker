@@ -1,0 +1,26 @@
+# Tells Render (render.com) how to host this app. See the README for steps.
+services:
+  - type: web
+    name: siegechecker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.1
+      - key: PLATFORM_FAMILY
+        value: console
+      - key: LOOKUP_PLATFORMS
+        value: psn,uplay,xbl
+      # "sync: false" = Render asks you to type these in. They are secrets,
+      # so they never go in this file or on GitHub.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: UBISOFT_EMAIL
+        sync: false
+      - key: UBISOFT_PASSWORD
+        sync: false
+      - key: APP_PASSWORD
+        sync: false

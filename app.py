@@ -1,10 +1,11 @@
 """Step 3: the web server your phone talks to.
 
-Run it with:   uvicorn app:app --host 0.0.0.0 --port 8000
-Then open http://<your-computer's-IP>:8000 on your phone (same Wi-Fi).
+Run it locally with:   uvicorn app:app --host 0.0.0.0 --port 8000
+Or host it online (see README) to use it from anywhere.
 """
 
 import os
+import secrets
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 
@@ -14,7 +15,7 @@ from dotenv import load_dotenv
 # Load .env BEFORE importing our modules, because they read settings on import.
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, UploadFile  # noqa: E402
+from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile  # noqa: E402
 from fastapi.responses import FileResponse  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
@@ -38,12 +39,24 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+def check_password(x_app_password: str = Header(default="")):
+    """Block anyone who doesn't know APP_PASSWORD (if one is set).
+
+    Without this, anyone who found your website could use up your Claude credit.
+    compare_digest compares in constant time, so the answer can't be guessed
+    letter by letter from how long the check takes.
+    """
+    expected = os.environ.get("APP_PASSWORD")
+    if expected and not secrets.compare_digest(x_app_password.encode(), expected.encode()):
+        raise HTTPException(401, "Wrong password")
+
+
 @app.get("/")
 async def home():
     return FileResponse("static/index.html")
 
 
-@app.post("/api/scan")
+@app.post("/api/scan", dependencies=[Depends(check_password)])
 async def scan(photo: UploadFile):
     """Photo in, two lists of names out."""
     if photo.content_type not in ALLOWED_IMAGE_TYPES:
@@ -64,7 +77,7 @@ class StatsRequest(BaseModel):
     names: list[str]
 
 
-@app.post("/api/stats")
+@app.post("/api/stats", dependencies=[Depends(check_password)])
 async def stats(request: StatsRequest):
     """List of names in, list of stats out (same order)."""
     names = [n for n in request.names if n.strip()][:10]

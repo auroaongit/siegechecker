@@ -50,7 +50,28 @@ Then fill in `.env`:
   Turn off two-factor authentication on the spare account, or the login won't work.
 - **`PLATFORM_FAMILY`**: `console` for PlayStation/Xbox ranked, `pc` for PC.
 
-## Running it
+## Put it online (use it from anywhere on your phone)
+
+This hosts the app for free on [Render](https://render.com), which runs it from this GitHub repo.
+
+1. Sign up at https://render.com using **Sign in with GitHub**.
+2. Click **New → Blueprint**, pick the `siegechecker` repo, and click **Connect**.
+   Render reads `render.yaml` and sets everything up.
+3. Render asks for four secret values. Type them in:
+   - `ANTHROPIC_API_KEY`: your Claude API key
+   - `UBISOFT_EMAIL` / `UBISOFT_PASSWORD`: the spare Ubisoft account
+   - `APP_PASSWORD`: make up a password for the site. Your phone asks for it once and remembers it.
+4. Click **Apply** and wait a few minutes for the first build.
+5. Open the `https://siegechecker-xxxx.onrender.com` link Render gives you on your phone.
+   Then use **Share → Add to Home Screen** so it opens like an app.
+
+Every time you push changes to GitHub, Render rebuilds the site automatically.
+
+**Free plan catch:** the site goes to sleep after 15 minutes with no visitors. The first
+scan after that takes about a minute while it wakes up. Open the site in the
+operator-select phase, before you need the stats.
+
+## Running it on your own computer instead
 
 ```bash
 uvicorn app:app --host 0.0.0.0 --port 8000
@@ -70,5 +91,5 @@ Tip: add the page to your home screen (Share → Add to Home Screen) so it opens
   your scoreboard shows placeholder names, so there's nothing real to look up. Turn it off.
 - **Name not found?** Try fixing look-alike characters (`l`/`I`/`1`, `O`/`0`). The app tries
   PSN names first, then Ubisoft names, then Xbox. Change the order with `LOOKUP_PLATFORMS` in `.env`.
-- **Only use it on your own network.** Anyone who can open the page can spend your Claude credit.
-  Don't put it on the public internet without adding a password.
+- **Always set `APP_PASSWORD` when it's online.** Without it, anyone who finds the link can spend
+  your Claude credit. Set a spending limit at https://platform.claude.com too, just in case.
